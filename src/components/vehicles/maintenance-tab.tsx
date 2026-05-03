@@ -131,7 +131,7 @@ export function MaintenanceTab({ vehicleId, isOwner, onUpdate }: { vehicleId: st
             )}
           </div>
         </div>
-        {(isOwner || true) && (
+        {isOwner && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1.5 h-8 text-xs">

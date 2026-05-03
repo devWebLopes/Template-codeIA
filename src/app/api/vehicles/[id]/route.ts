@@ -90,6 +90,42 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    const result = await checkVehicleAccess(id, user.id);
+    if (!result.allowed || !result.owner) {
+      return result.reason === "notfound"
+        ? NextResponse.json({ error: "Veículo não encontrado" }, { status: 404 })
+        : NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const parsed = UpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Dados inválidos", issues: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const data = parsed.data;
+    const vehicle = await db.vehicle.update({
+      where: { id },
+      data: {
+        ...data,
+        purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
+        licensePlate: data.licensePlate?.toUpperCase(),
+      },
+    });
+
+    return NextResponse.json({ vehicle });
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  }
+}
+
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
