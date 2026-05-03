@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Wrench, Calendar, Gauge, DollarSign, Trash2, ChevronRight } from "lucide-react";
+import { Plus, Wrench, Calendar, Gauge, DollarSign, Trash2, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 import { formatCurrency, formatDate, formatMileage } from "@/lib/auto-format";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -43,6 +43,16 @@ interface Maintenance {
   nextMaintenanceDate?: string;
   nextMaintenanceMileage?: number;
   invoiceUrl?: string;
+}
+
+function getNextStatus(m: Maintenance): "overdue" | "upcoming" | "ok" | null {
+  if (!m.nextMaintenanceDate) return null;
+  const next = new Date(m.nextMaintenanceDate);
+  const now = new Date();
+  const daysUntil = Math.ceil((next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysUntil < 0) return "overdue";
+  if (daysUntil <= 30) return "upcoming";
+  return "ok";
 }
 
 export function MaintenanceTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; isOwner: boolean; onUpdate: () => void }) {
@@ -95,13 +105,31 @@ export function MaintenanceTab({ vehicleId, isOwner, onUpdate }: { vehicleId: st
   }
 
   const totalCost = items.reduce((sum, m) => sum + m.cost, 0);
+  const overdueCount = items.filter((m) => getNextStatus(m) === "overdue").length;
+  const upcomingCount = items.filter((m) => getNextStatus(m) === "upcoming").length;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium">{items.length} revisões</p>
-          <p className="text-xs text-muted-foreground">Total: {formatCurrency(totalCost)}</p>
+          <p className="text-sm font-medium">{items.length} revisões · {formatCurrency(totalCost)}</p>
+          <div className="flex items-center gap-2 mt-1">
+            {overdueCount > 0 && (
+              <span className="flex items-center gap-1 text-[11px] text-red-500 font-medium">
+                <AlertTriangle className="h-3 w-3" />{overdueCount} vencida{overdueCount > 1 ? "s" : ""}
+              </span>
+            )}
+            {upcomingCount > 0 && (
+              <span className="flex items-center gap-1 text-[11px] text-orange-500 font-medium">
+                <Clock className="h-3 w-3" />{upcomingCount} próxima{upcomingCount > 1 ? "s" : ""}
+              </span>
+            )}
+            {overdueCount === 0 && upcomingCount === 0 && items.length > 0 && (
+              <span className="flex items-center gap-1 text-[11px] text-green-500 font-medium">
+                <CheckCircle2 className="h-3 w-3" />Em dia
+              </span>
+            )}
+          </div>
         </div>
         {(isOwner || true) && (
           <Dialog open={open} onOpenChange={setOpen}>
@@ -187,37 +215,52 @@ export function MaintenanceTab({ vehicleId, isOwner, onUpdate }: { vehicleId: st
         </div>
       ) : (
         <div className="space-y-2">
-          {items.map((m) => (
-            <div key={m.id} className="rounded-xl border border-border/40 bg-card/30 p-3 md:p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
-                    <Wrench className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm">{m.type}</p>
-                    <p className="text-muted-foreground text-xs mt-0.5 line-clamp-2">{m.description}</p>
-                    <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(m.date)}</span>
-                      <span className="flex items-center gap-1"><Gauge className="h-3 w-3" />{formatMileage(m.mileage)}</span>
-                      <span className="flex items-center gap-1 font-medium text-foreground"><DollarSign className="h-3 w-3" />{formatCurrency(m.cost)}</span>
+          {items.map((m) => {
+            const status = getNextStatus(m);
+            return (
+              <div key={m.id} className={`rounded-xl border bg-card/30 p-3 md:p-4 transition-colors ${status === "overdue" ? "border-red-500/30 bg-red-500/5" : status === "upcoming" ? "border-orange-500/30 bg-orange-500/5" : "border-border/40"}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 mt-0.5 ${status === "overdue" ? "bg-red-500/10 text-red-500" : status === "upcoming" ? "bg-orange-500/10 text-orange-500" : "bg-orange-500/10 text-orange-500"}`}>
+                      <Wrench className="h-3.5 w-3.5" />
                     </div>
-                    {m.nextMaintenanceDate && (
-                      <Badge variant="outline" className="text-[10px] mt-2">
-                        Próxima: {formatDate(m.nextMaintenanceDate)}
-                        {m.nextMaintenanceMileage ? ` ou ${formatMileage(m.nextMaintenanceMileage)}` : ""}
-                      </Badge>
-                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm">{m.type}</p>
+                        {status === "overdue" && (
+                          <Badge variant="destructive" className="text-[10px] py-0 h-4">Vencida</Badge>
+                        )}
+                        {status === "upcoming" && (
+                          <Badge className="text-[10px] py-0 h-4 bg-orange-500 hover:bg-orange-500">Próxima</Badge>
+                        )}
+                        {status === "ok" && (
+                          <Badge variant="outline" className="text-[10px] py-0 h-4 text-green-600 border-green-500/40">Em dia</Badge>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground text-xs mt-0.5 line-clamp-2">{m.description}</p>
+                      <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-muted-foreground">
+                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(m.date)}</span>
+                        <span className="flex items-center gap-1"><Gauge className="h-3 w-3" />{formatMileage(m.mileage)}</span>
+                        <span className="flex items-center gap-1 font-medium text-foreground"><DollarSign className="h-3 w-3" />{formatCurrency(m.cost)}</span>
+                      </div>
+                      {m.nextMaintenanceDate && (
+                        <div className={`flex items-center gap-1 text-[11px] mt-2 font-medium ${status === "overdue" ? "text-red-500" : status === "upcoming" ? "text-orange-500" : "text-muted-foreground"}`}>
+                          <Clock className="h-3 w-3" />
+                          Próxima: {formatDate(m.nextMaintenanceDate)}
+                          {m.nextMaintenanceMileage ? ` ou ${formatMileage(m.nextMaintenanceMileage)}` : ""}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  {isOwner && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleDelete(m.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                    </Button>
+                  )}
                 </div>
-                {isOwner && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleDelete(m.id)}>
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                  </Button>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

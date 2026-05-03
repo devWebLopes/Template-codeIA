@@ -7,10 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
-  Car, Wrench, Fuel, FileText, Shield, Key, ChevronLeft,
-  Gauge, Calendar, Edit2, Trash2, MapPin, DollarSign
+  Car, Wrench, Fuel, FileText, Shield, Key,
+  Gauge, Calendar, Trash2, MapPin, DollarSign, Pencil
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, formatDate, formatMileage, fuelTypeLabel } from "@/lib/auto-format";
@@ -51,6 +54,9 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [mileageOpen, setMileageOpen] = useState(false);
+  const [newMileage, setNewMileage] = useState("");
+  const [savingMileage, setSavingMileage] = useState(false);
 
   useSetPageMetadata({
     title: vehicle ? `${vehicle.brand} ${vehicle.model}` : "Veículo",
@@ -92,6 +98,34 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function handleMileageUpdate() {
+    const km = parseInt(newMileage, 10);
+    if (isNaN(km) || km < 0) { toast.error("Quilometragem inválida"); return; }
+    if (vehicle && km < vehicle.currentMileage) {
+      if (!confirm(`A quilometragem atual é ${formatMileage(vehicle.currentMileage)}. Deseja realmente registrar ${formatMileage(km)}?`)) return;
+    }
+    setSavingMileage(true);
+    try {
+      const res = await fetch(`/api/vehicles/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentMileage: km }),
+      });
+      if (res.ok) {
+        toast.success("Quilometragem atualizada!");
+        setMileageOpen(false);
+        setNewMileage("");
+        loadVehicle();
+      } else {
+        toast.error("Erro ao atualizar quilometragem");
+      }
+    } catch {
+      toast.error("Erro ao atualizar quilometragem");
+    } finally {
+      setSavingMileage(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -115,7 +149,10 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
     <div className="space-y-4">
       {/* Vehicle Header */}
       <div className="rounded-xl border border-border/40 bg-card/40 overflow-hidden">
-        <div className="h-1.5 bg-gradient-to-r from-primary/60 to-primary/20" />
+        <div
+          className="h-1.5"
+          style={vehicle.color ? { backgroundColor: vehicle.color } : { background: "hsl(var(--primary) / 0.5)" }}
+        />
         <div className="p-4 md:p-5">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
@@ -135,7 +172,16 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
               </p>
             </div>
             {isOwner && (
-              <div className="flex gap-2 shrink-0">
+              <div className="flex gap-1 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => { setNewMileage(String(vehicle.currentMileage)); setMileageOpen(true); }}
+                  title="Atualizar quilometragem"
+                >
+                  <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8" disabled={deleting} onClick={handleDelete}>
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </Button>
@@ -144,13 +190,55 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <InfoChip icon={Gauge} label="Quilometragem" value={formatMileage(vehicle.currentMileage)} />
+            <button
+              onClick={() => { if (isOwner) { setNewMileage(String(vehicle.currentMileage)); setMileageOpen(true); } }}
+              className={`rounded-lg bg-muted/40 p-2.5 text-left transition-colors ${isOwner ? "hover:bg-muted/70 cursor-pointer group" : ""}`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <Gauge className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[10px] text-muted-foreground">Quilometragem</span>
+                {isOwner && <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />}
+              </div>
+              <p className="font-medium text-xs truncate">{formatMileage(vehicle.currentMileage)}</p>
+            </button>
             {vehicle.purchaseDate && <InfoChip icon={Calendar} label="Compra" value={formatDate(vehicle.purchaseDate)} />}
             {vehicle.purchaseValue && <InfoChip icon={DollarSign} label="Valor pago" value={formatCurrency(vehicle.purchaseValue)} />}
             {vehicle.chassisNumber && <InfoChip icon={MapPin} label="Chassi" value={vehicle.chassisNumber.slice(-6)} />}
           </div>
         </div>
       </div>
+
+      {/* Mileage Update Dialog */}
+      <Dialog open={mileageOpen} onOpenChange={setMileageOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gauge className="h-4 w-4" />
+              Atualizar Quilometragem
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <p className="text-xs text-muted-foreground">
+              Atual: <span className="font-medium text-foreground">{formatMileage(vehicle.currentMileage)}</span>
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Nova quilometragem (km) *</Label>
+              <Input
+                type="number"
+                value={newMileage}
+                onChange={(e) => setNewMileage(e.target.value)}
+                placeholder={String(vehicle.currentMileage)}
+                className="h-9"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") handleMileageUpdate(); }}
+              />
+            </div>
+            <Button onClick={handleMileageUpdate} disabled={savingMileage} className="w-full h-9">
+              {savingMileage ? "Salvando..." : "Atualizar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
@@ -229,10 +317,10 @@ function InfoChip({ icon: Icon, label, value }: { icon: React.ComponentType<{ cl
 
 function VehicleOverview({ vehicle }: { vehicle: VehicleData }) {
   const stats = [
-    { label: "Manutenções", value: vehicle.maintenances.length, icon: Wrench },
-    { label: "Despesas", value: vehicle.expenses.length, icon: DollarSign },
-    { label: "Abastecimentos", value: vehicle.fuelLogs.length, icon: Fuel },
-    { label: "Documentos", value: vehicle.documents.length, icon: FileText },
+    { label: "Manutenções", value: vehicle.maintenances.length, icon: Wrench, color: "text-orange-500" },
+    { label: "Despesas", value: vehicle.expenses.length, icon: DollarSign, color: "text-green-500" },
+    { label: "Abastecimentos", value: vehicle.fuelLogs.length, icon: Fuel, color: "text-blue-500" },
+    { label: "Documentos", value: vehicle.documents.length, icon: FileText, color: "text-purple-500" },
   ];
 
   return (
@@ -240,7 +328,7 @@ function VehicleOverview({ vehicle }: { vehicle: VehicleData }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {stats.map((s) => (
           <div key={s.label} className="rounded-xl border border-border/40 bg-card/30 p-3 text-center">
-            <s.icon className="h-4 w-4 text-primary mx-auto mb-1" />
+            <s.icon className={`h-4 w-4 mx-auto mb-1 ${s.color}`} />
             <p className="font-bold text-lg">{s.value}</p>
             <p className="text-muted-foreground text-[11px]">{s.label}</p>
           </div>

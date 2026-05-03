@@ -15,14 +15,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 const CATEGORIES = [
-  { value: "FUEL", label: "Combustível", color: "bg-blue-500/10 text-blue-600" },
-  { value: "TAX", label: "Imposto", color: "bg-red-500/10 text-red-600" },
-  { value: "INSURANCE", label: "Seguro", color: "bg-purple-500/10 text-purple-600" },
-  { value: "FINE", label: "Multa", color: "bg-orange-500/10 text-orange-600" },
-  { value: "WASH", label: "Lavagem", color: "bg-cyan-500/10 text-cyan-600" },
-  { value: "PARKING", label: "Estacionamento", color: "bg-yellow-500/10 text-yellow-700" },
-  { value: "MAINTENANCE", label: "Manutenção", color: "bg-green-500/10 text-green-600" },
-  { value: "OTHER", label: "Outro", color: "bg-gray-500/10 text-gray-600" },
+  { value: "FUEL", label: "Combustível", color: "bg-blue-500/10 text-blue-600", bar: "bg-blue-500" },
+  { value: "TAX", label: "Imposto", color: "bg-red-500/10 text-red-600", bar: "bg-red-500" },
+  { value: "INSURANCE", label: "Seguro", color: "bg-purple-500/10 text-purple-600", bar: "bg-purple-500" },
+  { value: "FINE", label: "Multa", color: "bg-orange-500/10 text-orange-600", bar: "bg-orange-500" },
+  { value: "WASH", label: "Lavagem", color: "bg-cyan-500/10 text-cyan-600", bar: "bg-cyan-500" },
+  { value: "PARKING", label: "Estacionamento", color: "bg-yellow-500/10 text-yellow-700", bar: "bg-yellow-500" },
+  { value: "MAINTENANCE", label: "Manutenção", color: "bg-green-500/10 text-green-600", bar: "bg-green-500" },
+  { value: "OTHER", label: "Outro", color: "bg-gray-500/10 text-gray-600", bar: "bg-gray-400" },
 ];
 
 const schema = z.object({
@@ -90,8 +90,15 @@ export function ExpenseTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string
   }
 
   const filtered = filter === "ALL" ? items : items.filter((e) => e.category === filter);
-  const total = filtered.reduce((sum, e) => sum + e.value, 0);
+  const total = items.reduce((sum, e) => sum + e.value, 0);
   const catColor = (cat: string) => CATEGORIES.find((c) => c.value === cat)?.color ?? "bg-gray-500/10 text-gray-600";
+
+  // Category breakdown
+  const byCategory = CATEGORIES.map((c) => ({
+    ...c,
+    amount: items.filter((e) => e.category === c.value).reduce((s, e) => s + e.value, 0),
+  })).filter((c) => c.amount > 0).sort((a, b) => b.amount - a.amount);
+  const maxAmount = byCategory[0]?.amount ?? 1;
 
   return (
     <div className="space-y-4">
@@ -154,6 +161,27 @@ export function ExpenseTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string
         )}
       </div>
 
+      {/* Category Breakdown */}
+      {!loading && byCategory.length > 0 && (
+        <div className="rounded-xl border border-border/40 bg-card/20 p-3 space-y-2.5">
+          <p className="text-xs font-medium text-muted-foreground">Gastos por categoria</p>
+          {byCategory.map((c) => (
+            <div key={c.value} className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">{c.label}</span>
+                <span className="font-medium">{formatCurrency(c.amount)}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-muted/50 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${c.bar} transition-all duration-500`}
+                  style={{ width: `${(c.amount / maxAmount) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Category Filter */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         <button
@@ -162,7 +190,7 @@ export function ExpenseTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string
         >
           Todos
         </button>
-        {CATEGORIES.map((c) => (
+        {CATEGORIES.filter((c) => items.some((e) => e.category === c.value)).map((c) => (
           <button
             key={c.value}
             onClick={() => setFilter(c.value)}
