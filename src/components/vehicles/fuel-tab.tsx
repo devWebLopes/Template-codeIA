@@ -34,7 +34,7 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
-type VoiceField = "liters" | "pricePerLiter" | "totalCost" | "mileage" | null;
+type ActiveVoiceField = "liters" | "pricePerLiter" | "totalCost" | "mileage" | null;
 
 interface FuelLog {
   id: string;
@@ -53,7 +53,7 @@ export function FuelTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeVoiceField, setActiveVoiceField] = useState<VoiceField>(null);
+  const [activeField, setActiveField] = useState<ActiveVoiceField>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -61,81 +61,50 @@ export function FuelTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
   });
 
   const { watch, setValue } = form;
-  const liters = watch("liters");
-  const pricePerLiter = watch("pricePerLiter");
+  const litersVal = watch("liters");
+  const priceVal = watch("pricePerLiter");
 
   useEffect(() => {
-    if (liters && pricePerLiter) {
-      setValue("totalCost", parseFloat((liters * pricePerLiter).toFixed(2)));
+    if (litersVal && priceVal) {
+      setValue("totalCost", parseFloat((litersVal * priceVal).toFixed(2)));
     }
-  }, [liters, pricePerLiter, setValue]);
+  }, [litersVal, priceVal, setValue]);
 
-  const handleVoiceResult = useCallback((field: VoiceField, value: number) => {
-    if (!field) return;
-    setValue(field, value);
-    setActiveVoiceField(null);
-    toast.success(`${fieldLabels[field]} atualizado por voz!`);
-    // Auto-recalculate total if liters or pricePerLiter changed
+  // One hook per numeric field — hooks must be at the top level, never conditionally
+  const litersVoice = useVoiceInput({ field: "decimal", onError: (e) => toast.error(e) });
+  const priceVoice  = useVoiceInput({ field: "decimal", onError: (e) => toast.error(e) });
+  const totalVoice  = useVoiceInput({ field: "decimal", onError: (e) => toast.error(e) });
+  const kmVoice     = useVoiceInput({ field: "integer", onError: (e) => toast.error(e) });
+
+  const resetAllVoice = useCallback(() => {
+    litersVoice.reset(); priceVoice.reset(); totalVoice.reset(); kmVoice.reset();
+    setActiveField(null);
+  }, [litersVoice, priceVoice, totalVoice, kmVoice]);
+
+  function applyVoiceValue(field: Exclude<ActiveVoiceField, null>, value: number, isInt = false) {
+    const finalVal = isInt ? Math.round(value) : value;
+    setValue(field, finalVal);
+    setActiveField(null);
+    // Recalculate total when liters or price changes
     if (field === "liters" || field === "pricePerLiter") {
-      const l = field === "liters" ? value : form.getValues("liters");
-      const p = field === "pricePerLiter" ? value : form.getValues("pricePerLiter");
+      const l = field === "liters"        ? finalVal : form.getValues("liters");
+      const p = field === "pricePerLiter" ? finalVal : form.getValues("pricePerLiter");
       if (l && p) setValue("totalCost", parseFloat((l * p).toFixed(2)));
     }
-  }, [setValue, form]);
+    const labels: Record<Exclude<ActiveVoiceField, null>, string> = {
+      liters: "Litros", pricePerLiter: "Preço/litro", totalCost: "Total", mileage: "Quilometragem",
+    };
+    toast.success(`${labels[field]} preenchido por voz!`);
+  }
 
-  const fieldLabels: Record<Exclude<VoiceField, null>, string> = {
-    liters: "Litros",
-    pricePerLiter: "Preço/litro",
-    totalCost: "Total",
-    mileage: "Quilometragem",
-  };
-
-  const fieldUnits: Record<Exclude<VoiceField, null>, string> = {
-    liters: "L",
-    pricePerLiter: "R$/L",
-    totalCost: "R$",
-    mileage: "km",
-  };
-
-  const litersVoice = useVoiceInput({
-    field: "decimal",
-    onResult: (r) => { /* handled in confirm */ },
-    onError: (e) => toast.error(e),
-  });
-
-  const priceVoice = useVoiceInput({
-    field: "decimal",
-    onResult: (r) => { /* handled in confirm */ },
-    onError: (e) => toast.error(e),
-  });
-
-  const totalVoice = useVoiceInput({
-    field: "decimal",
-    onResult: (r) => { /* handled in confirm */ },
-    onError: (e) => toast.error(e),
-  });
-
-  const mileageVoice = useVoiceInput({
-    field: "integer",
-    onResult: (r) => { /* handled in confirm */ },
-    onError: (e) => toast.error(e),
-  });
-
-  const voiceMap = {
-    liters: litersVoice,
-    pricePerLiter: priceVoice,
-    totalCost: totalVoice,
-    mileage: mileageVoice,
-  } as const;
-
-  const load = () => {
+  const load = useCallback(() => {
     fetch(`/api/vehicles/${vehicleId}/fuel-logs`)
       .then((r) => r.json())
       .then((d) => setItems(d.fuelLogs ?? []))
       .finally(() => setLoading(false));
-  };
+  }, [vehicleId]);
 
-  useEffect(() => { load(); }, [vehicleId]);
+  useEffect(() => { load(); }, [load]);
 
   const avgConsumption = (() => {
     const withKm = items.filter((f) => f.fullTank);
@@ -162,93 +131,25 @@ export function FuelTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
       toast.success("Abastecimento registrado!");
       setOpen(false);
       form.reset({ fuelType: "GASOLINE", liters: 0, pricePerLiter: 0, totalCost: 0, mileage: 0, fullTank: true });
-      setActiveVoiceField(null);
+      resetAllVoice();
       load();
       onUpdate();
     } catch { toast.error("Erro ao salvar"); }
     finally { setSaving(false); }
   }
 
-  const totalSpent = items.reduce((sum, f) => sum + f.totalCost, 0);
+  const totalSpent    = items.reduce((sum, f) => sum + f.totalCost, 0);
   const totalLitersSum = items.reduce((sum, f) => sum + f.liters, 0);
-
-  // Helper to render a numeric field with voice button
-  function VoiceField({
-    fieldKey,
-    label,
-    required,
-    step,
-    placeholder,
-    isInteger,
-  }: {
-    fieldKey: Exclude<VoiceField, null>;
-    label: string;
-    required?: boolean;
-    step?: string;
-    placeholder?: string;
-    isInteger?: boolean;
-  }) {
-    const voice = voiceMap[fieldKey];
-    const isActive = activeVoiceField === fieldKey;
-
-    return (
-      <div className="space-y-1.5">
-        <Label className="text-xs">{label}{required ? " *" : ""}</Label>
-        <div className="flex gap-1.5">
-          <Input
-            type="number"
-            step={step ?? "0.01"}
-            {...form.register(fieldKey, { valueAsNumber: true })}
-            placeholder={placeholder ?? "0"}
-            className="h-9 flex-1"
-          />
-          <VoiceButton
-            state={voice.state}
-            onStart={() => {
-              setActiveVoiceField(fieldKey);
-              voice.start();
-            }}
-            onStop={voice.stop}
-            supported={voice.supported}
-            size="sm"
-          />
-        </div>
-        {isActive && (voice.state === "listening" || voice.state === "processing" || voice.state === "done" || voice.state === "error") && (
-          <VoiceResultCard
-            label={label}
-            state={voice.state}
-            rawText={voice.result?.raw}
-            parsedNumber={voice.result?.number}
-            unit={fieldUnits[fieldKey]}
-            onConfirm={(val) => {
-              handleVoiceResult(fieldKey, isInteger ? Math.round(val) : val);
-              voice.reset();
-            }}
-            onRetry={() => {
-              voice.reset();
-              setTimeout(() => {
-                setActiveVoiceField(fieldKey);
-                voice.start();
-              }, 200);
-            }}
-            onDismiss={() => {
-              voice.reset();
-              setActiveVoiceField(null);
-            }}
-          />
-        )}
-      </div>
-    );
-  }
+  const voiceSupported = litersVoice.supported;
 
   return (
     <div className="space-y-4">
       {items.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "Total gasto", value: formatCurrency(totalSpent) },
-            { label: "Total litros", value: `${totalLitersSum.toFixed(1)}L` },
-            { label: "Consumo médio", value: avgConsumption ? `${avgConsumption} km/L` : "—" },
+            { label: "Total gasto",    value: formatCurrency(totalSpent) },
+            { label: "Total litros",   value: `${totalLitersSum.toFixed(1)}L` },
+            { label: "Consumo médio",  value: avgConsumption ? `${avgConsumption} km/L` : "—" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl bg-muted/40 p-3 text-center">
               <p className="font-bold text-sm">{s.value}</p>
@@ -260,14 +161,19 @@ export function FuelTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
 
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">{items.length} abastecimentos</p>
+
         {isOwner && (
-          <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setActiveVoiceField(null); Object.values(voiceMap).forEach(v => v.reset()); } }}>
+          <Dialog
+            open={open}
+            onOpenChange={(o) => { setOpen(o); if (!o) resetAllVoice(); }}
+          >
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1.5 h-8 text-xs">
                 <Plus className="h-3.5 w-3.5" />
                 Abastecer
               </Button>
             </DialogTrigger>
+
             <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -276,14 +182,16 @@ export function FuelTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
                 </DialogTitle>
               </DialogHeader>
 
-              {litersVoice.supported && (
+              {voiceSupported && (
                 <div className="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-primary">
                   <span>🎤</span>
-                  Toque no ícone de microfone ao lado de cada campo para falar o valor
+                  Toque no microfone ao lado de cada campo para falar o valor
                 </div>
               )}
 
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 mt-1">
+
+                {/* Combustível */}
                 <div className="space-y-1.5">
                   <Label className="text-xs">Combustível *</Label>
                   <div className="grid grid-cols-4 gap-2">
@@ -300,26 +208,92 @@ export function FuelTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
                   </div>
                 </div>
 
+                {/* Data + Quilometragem */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Data *</Label>
                     <Input type="date" {...form.register("date")} className="h-9" />
                   </div>
-                  <VoiceField fieldKey="mileage" label="Quilometragem" required step="1" placeholder="0" isInteger />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Quilometragem *</Label>
+                    <div className="flex gap-1.5">
+                      <Input type="number" step="1" {...form.register("mileage", { valueAsNumber: true })} placeholder="0" className="h-9 flex-1" />
+                      <VoiceButton state={kmVoice.state} onStart={() => { setActiveField("mileage"); kmVoice.start(); }} onStop={kmVoice.stop} supported={voiceSupported} size="sm" />
+                    </div>
+                    {activeField === "mileage" && (
+                      <VoiceResultCard
+                        label="Quilometragem" state={kmVoice.state}
+                        rawText={kmVoice.result?.raw} parsedNumber={kmVoice.result?.number} unit="km"
+                        onConfirm={(v) => { applyVoiceValue("mileage", v, true); kmVoice.reset(); }}
+                        onRetry={() => { kmVoice.reset(); setTimeout(() => { setActiveField("mileage"); kmVoice.start(); }, 200); }}
+                        onDismiss={() => { kmVoice.reset(); setActiveField(null); }}
+                      />
+                    )}
+                  </div>
                 </div>
 
+                {/* Litros + Preço/litro */}
                 <div className="grid grid-cols-2 gap-3">
-                  <VoiceField fieldKey="liters" label="Litros" required step="0.001" placeholder="0,000" />
-                  <VoiceField fieldKey="pricePerLiter" label="Preço/litro (R$)" required step="0.001" placeholder="0,000" />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Litros *</Label>
+                    <div className="flex gap-1.5">
+                      <Input type="number" step="0.001" {...form.register("liters", { valueAsNumber: true })} placeholder="0,000" className="h-9 flex-1" />
+                      <VoiceButton state={litersVoice.state} onStart={() => { setActiveField("liters"); litersVoice.start(); }} onStop={litersVoice.stop} supported={voiceSupported} size="sm" />
+                    </div>
+                    {activeField === "liters" && (
+                      <VoiceResultCard
+                        label="Litros" state={litersVoice.state}
+                        rawText={litersVoice.result?.raw} parsedNumber={litersVoice.result?.number} unit="L"
+                        onConfirm={(v) => { applyVoiceValue("liters", v); litersVoice.reset(); }}
+                        onRetry={() => { litersVoice.reset(); setTimeout(() => { setActiveField("liters"); litersVoice.start(); }, 200); }}
+                        onDismiss={() => { litersVoice.reset(); setActiveField(null); }}
+                      />
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Preço/litro (R$) *</Label>
+                    <div className="flex gap-1.5">
+                      <Input type="number" step="0.001" {...form.register("pricePerLiter", { valueAsNumber: true })} placeholder="0,000" className="h-9 flex-1" />
+                      <VoiceButton state={priceVoice.state} onStart={() => { setActiveField("pricePerLiter"); priceVoice.start(); }} onStop={priceVoice.stop} supported={voiceSupported} size="sm" />
+                    </div>
+                    {activeField === "pricePerLiter" && (
+                      <VoiceResultCard
+                        label="Preço/litro" state={priceVoice.state}
+                        rawText={priceVoice.result?.raw} parsedNumber={priceVoice.result?.number} unit="R$/L"
+                        onConfirm={(v) => { applyVoiceValue("pricePerLiter", v); priceVoice.reset(); }}
+                        onRetry={() => { priceVoice.reset(); setTimeout(() => { setActiveField("pricePerLiter"); priceVoice.start(); }, 200); }}
+                        onDismiss={() => { priceVoice.reset(); setActiveField(null); }}
+                      />
+                    )}
+                  </div>
                 </div>
 
-                <VoiceField fieldKey="totalCost" label="Total (R$) — calculado automaticamente" step="0.01" placeholder="0,00" />
+                {/* Total */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Total (R$) — calculado automaticamente</Label>
+                  <div className="flex gap-1.5">
+                    <Input type="number" step="0.01" {...form.register("totalCost", { valueAsNumber: true })} placeholder="0,00" className="h-9 flex-1" />
+                    <VoiceButton state={totalVoice.state} onStart={() => { setActiveField("totalCost"); totalVoice.start(); }} onStop={totalVoice.stop} supported={voiceSupported} size="sm" />
+                  </div>
+                  {activeField === "totalCost" && (
+                    <VoiceResultCard
+                      label="Total" state={totalVoice.state}
+                      rawText={totalVoice.result?.raw} parsedNumber={totalVoice.result?.number} unit="R$"
+                      onConfirm={(v) => { applyVoiceValue("totalCost", v); totalVoice.reset(); }}
+                      onRetry={() => { totalVoice.reset(); setTimeout(() => { setActiveField("totalCost"); totalVoice.start(); }, 200); }}
+                      onDismiss={() => { totalVoice.reset(); setActiveField(null); }}
+                    />
+                  )}
+                </div>
 
+                {/* Posto */}
                 <div className="space-y-1.5">
                   <Label className="text-xs">Posto (opcional)</Label>
                   <Input {...form.register("stationName")} placeholder="Nome do posto" className="h-9" />
                 </div>
 
+                {/* Tanque cheio */}
                 <div className="flex items-center gap-2">
                   <input type="checkbox" id="fullTank" {...form.register("fullTank")} className="h-4 w-4 rounded border-border" />
                   <Label htmlFor="fullTank" className="text-xs cursor-pointer">Tanque cheio (usado para calcular consumo médio)</Label>
@@ -364,9 +338,7 @@ export function FuelTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
                 <span className="font-semibold text-sm">{formatCurrency(f.totalCost)}</span>
                 {isOwner && (
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
+                    variant="ghost" size="icon" className="h-7 w-7"
                     onClick={async () => {
                       if (!confirm("Excluir este abastecimento?")) return;
                       await fetch(`/api/vehicles/${vehicleId}/fuel-logs/${f.id}`, { method: "DELETE" });

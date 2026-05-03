@@ -34,17 +34,15 @@ const PT_HUNDREDS: Record<string, number> = {
 };
 
 function parsePortugueseWords(text: string): number | null {
-  // Normalize
   let s = text
     .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
-    .replace(/\be\b/g, " ") // "e" connector
-    .replace(/\bcom\b/g, " ") // "com" connector
-    .replace(/\bmil\b/g, " 1000 ") // mil
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\be\b/g, " ")
+    .replace(/\bcom\b/g, " ")
+    .replace(/\bmil\b/g, " 1000 ")
     .replace(/\s+/g, " ")
     .trim();
 
-  // Remove unit words that may appear after the number
   s = s.replace(/\b(reais?|centavos?|litros?|litro|quilometros?|quilômetros?|km|real|virgula|ponto)\b/gi, " _ ");
 
   const tokens = s.split(/\s+/).filter(t => t && t !== "_");
@@ -52,8 +50,6 @@ function parsePortugueseWords(text: string): number | null {
 
   let total = 0;
   let current = 0;
-  let hasDecimal = false;
-  let decimalPart = "";
 
   for (const token of tokens) {
     if (token === "1000") {
@@ -72,28 +68,18 @@ function parsePortugueseWords(text: string): number | null {
   }
   total += current;
 
-  if (total === 0) return null;
-
-  if (hasDecimal && decimalPart) {
-    const dec = parseInt(decimalPart, 10);
-    const divisor = Math.pow(10, decimalPart.length);
-    return total + dec / divisor;
-  }
-
-  return total;
+  return total === 0 ? null : total;
 }
 
 function extractNumber(raw: string): number | null {
-  // 1. Try to parse a numeric literal first (handles "57,5" "57.5" "1.234,56" "1,234.56")
+  // 1. Try numeric literal first — handles "57,5" "57.5" "1.234,56"
   const numericMatch = raw.match(/[\d]+(?:[.,][\d]+)?(?:[.,][\d]+)?/);
   if (numericMatch) {
     let s = numericMatch[0];
-    // Handle thousand separators: 1.234,56 → 1234.56 or 1,234.56 → 1234.56
+    // Handle thousand separators: 1.234,56 → 1234.56
     if (/^\d{1,3}([.,]\d{3})+([.,]\d+)?$/.test(s)) {
-      // Remove thousand separators and normalize decimal
       s = s.replace(/[.,](\d{3})(?=[.,]|$)/g, "$1").replace(",", ".");
     } else {
-      // Simple case: just replace comma decimal separator
       s = s.replace(",", ".");
     }
     const n = parseFloat(s);
@@ -119,14 +105,25 @@ export function useVoiceInput({ onResult, onError, field = "decimal" }: UseVoice
   const [state, setState] = useState<VoiceState>("idle");
   const [result, setResult] = useState<VoiceResult | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // Track whether the current recognition session produced a result
+  // (avoids stale-closure bugs when checking state inside rec.onend)
+  const gotResultRef = useRef(false);
+  const onResultRef = useRef(onResult);
+  const onErrorRef = useRef(onError);
+  const fieldRef = useRef(field);
+
+  // Keep refs in sync without re-creating `start` on every render
+  onResultRef.current = onResult;
+  onErrorRef.current = onError;
+  fieldRef.current = field;
 
   const start = useCallback(() => {
     if (!isVoiceSupported()) {
-      onError?.("Reconhecimento de voz não suportado neste navegador. Use Chrome ou Safari.");
+      onErrorRef.current?.("Reconhecimento de voz não suportado neste navegador. Use Chrome ou Safari.");
       return;
     }
 
-    // Stop any existing session
+    // Stop any existing session cleanly
     recognitionRef.current?.abort();
 
     const SpeechRecognitionClass =
@@ -139,11 +136,13 @@ export function useVoiceInput({ onResult, onError, field = "decimal" }: UseVoice
     rec.interimResults = false;
     rec.maxAlternatives = 5;
 
+    gotResultRef.current = false;
     recognitionRef.current = rec;
     setState("listening");
     setResult(null);
 
     rec.onresult = (event) => {
+      gotResultRef.current = true;
       setState("processing");
       const alternatives = Array.from(event.results[0]);
 
@@ -165,49 +164,58 @@ export function useVoiceInput({ onResult, onError, field = "decimal" }: UseVoice
         }
       }
 
-      // Round integer fields to whole numbers
-      if (field === "integer" && bestNumber !== null) {
+      if (fieldRef.current === "integer" && bestNumber !== null) {
         bestNumber = Math.round(bestNumber);
       }
 
       const r: VoiceResult = { raw: bestRaw, number: bestNumber, confidence: bestConfidence };
       setResult(r);
       setState("done");
-      onResult?.(r);
+      onResultRef.current?.(r);
     };
 
     rec.onerror = (event) => {
+      gotResultRef.current = true; // prevents onend from overriding error state
       setState("error");
       const messages: Record<string, string> = {
         "no-speech": "Nenhuma fala detectada. Tente novamente.",
         "audio-capture": "Microfone não encontrado.",
         "not-allowed": "Permissão de microfone negada.",
         "network": "Erro de rede. Verifique sua conexão.",
-        "aborted": "Reconhecimento cancelado.",
+        "aborted": "",
       };
-      onError?.(messages[event.error] ?? `Erro: ${event.error}`);
+      const msg = messages[event.error] ?? `Erro: ${event.error}`;
+      if (msg) onErrorRef.current?.(msg);
+      if (event.error === "aborted") setState("idle");
       recognitionRef.current = null;
     };
 
     rec.onend = () => {
-      if (state === "listening") setState("idle");
+      // If no result and no error was received, the recognition ended silently
+      // (e.g. silence timeout) — reset to idle so the user can try again
+      if (!gotResultRef.current) {
+        setState("idle");
+      }
       recognitionRef.current = null;
     };
 
     rec.start();
-  }, [onResult, onError, field, state]);
+  }, []); // stable — uses refs for all dependencies
 
   const stop = useCallback(() => {
+    gotResultRef.current = true; // prevent onend from resetting state
     recognitionRef.current?.stop();
     recognitionRef.current = null;
     setState("idle");
   }, []);
 
   const reset = useCallback(() => {
-    stop();
+    gotResultRef.current = true;
+    recognitionRef.current?.abort();
+    recognitionRef.current = null;
     setResult(null);
     setState("idle");
-  }, [stop]);
+  }, []);
 
   return { state, result, start, stop, reset, supported: isVoiceSupported() };
 }
