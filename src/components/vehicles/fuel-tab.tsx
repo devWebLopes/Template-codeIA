@@ -25,10 +25,10 @@ const FUEL_TYPES = [
 const schema = z.object({
   date: z.string().min(1),
   fuelType: z.enum(["GASOLINE", "ETHANOL", "DIESEL", "FLEX"]),
-  liters: z.number({ invalid_type_error: "Litros inválido" }).min(0),
-  pricePerLiter: z.number({ invalid_type_error: "Preço inválido" }).min(0),
-  totalCost: z.number({ invalid_type_error: "Total inválido" }).min(0),
-  mileage: z.number({ invalid_type_error: "Km inválido" }).int().min(0),
+  liters: z.coerce.number().min(0, "Litros inválido"),
+  pricePerLiter: z.coerce.number().min(0, "Preço inválido"),
+  totalCost: z.coerce.number().min(0, "Total inválido"),
+  mileage: z.coerce.number().int().min(0, "Km inválido"),
   stationName: z.string().optional(),
   fullTank: z.boolean().default(true),
 });
@@ -56,7 +56,8 @@ export function FuelTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
   const [activeField, setActiveField] = useState<ActiveVoiceField>(null);
 
   const form = useForm<FormData>({
-    resolver: zodResolver(schema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(schema) as any,
     defaultValues: { fuelType: "GASOLINE", liters: 0, pricePerLiter: 0, totalCost: 0, mileage: 0, fullTank: true },
   });
 

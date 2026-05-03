@@ -21,12 +21,12 @@ const schema = z.object({
   model: z.string().min(1, "Modelo obrigatório"),
   size: z.string().optional(),
   purchaseDate: z.string().min(1),
-  purchaseMileage: z.number({ invalid_type_error: "Km inválido" }).int().min(0),
-  cost: z.number({ invalid_type_error: "Custo inválido" }).min(0),
+  purchaseMileage: z.coerce.number().int().min(0, "Km inválido"),
+  cost: z.coerce.number().min(0, "Custo inválido"),
   lastRotationDate: z.string().optional(),
-  lastRotationMileage: z.number().int().optional().nullable(),
-  expectedLifespanKm: z.number().int().optional().nullable(),
-  expectedLifespanMonths: z.number().int().optional().nullable(),
+  lastRotationMileage: z.coerce.number().int().optional().nullable(),
+  expectedLifespanKm: z.coerce.number().int().optional().nullable(),
+  expectedLifespanMonths: z.coerce.number().int().optional().nullable(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -53,7 +53,8 @@ export function TireTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
   const [saving, setSaving] = useState(false);
 
   const form = useForm<FormData>({
-    resolver: zodResolver(schema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(schema) as any,
     defaultValues: { position: "FRONT_LEFT", purchaseMileage: 0, cost: 0 },
   });
 

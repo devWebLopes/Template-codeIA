@@ -24,10 +24,10 @@ const schema = z.object({
   date: z.string().min(1, "Data obrigatória"),
   type: z.string().min(1, "Tipo obrigatório"),
   description: z.string().min(1, "Descrição obrigatória"),
-  cost: z.number({ invalid_type_error: "Valor inválido" }).min(0),
-  mileage: z.number({ invalid_type_error: "Quilometragem inválida" }).int().min(0),
+  cost: z.coerce.number().min(0, "Valor inválido"),
+  mileage: z.coerce.number().int().min(0, "Quilometragem inválida"),
   nextMaintenanceDate: z.string().optional(),
-  nextMaintenanceMileage: z.number().int().optional().nullable(),
+  nextMaintenanceMileage: z.coerce.number().int().optional().nullable(),
   invoiceUrl: z.string().url().optional().or(z.literal("")),
 });
 
@@ -63,7 +63,8 @@ export function MaintenanceTab({ vehicleId, isOwner, onUpdate }: { vehicleId: st
   const [selectedType, setSelectedType] = useState("");
 
   const form = useForm<FormData>({
-    resolver: zodResolver(schema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(schema) as any,
     defaultValues: { cost: 0, mileage: 0 },
   });
 

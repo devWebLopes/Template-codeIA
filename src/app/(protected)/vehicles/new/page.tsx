@@ -17,13 +17,13 @@ import Link from "next/link";
 const schema = z.object({
   brand: z.string().min(1, "Marca obrigatória"),
   model: z.string().min(1, "Modelo obrigatório"),
-  year: z.number({ invalid_type_error: "Ano inválido" }).int().min(1900).max(new Date().getFullYear() + 2),
+  year: z.coerce.number().int().min(1900, "Ano inválido").max(new Date().getFullYear() + 2, "Ano inválido"),
   licensePlate: z.string().min(1, "Placa obrigatória"),
   chassisNumber: z.string().optional(),
-  currentMileage: z.number({ invalid_type_error: "Quilometragem inválida" }).int().min(0).default(0),
+  currentMileage: z.coerce.number().int().min(0, "Quilometragem inválida"),
   fuelType: z.enum(["GASOLINE", "ETHANOL", "DIESEL", "FLEX", "ELECTRIC"]),
   purchaseDate: z.string().optional(),
-  purchaseValue: z.number().optional().nullable(),
+  purchaseValue: z.coerce.number().optional().nullable(),
   color: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -53,7 +53,8 @@ export default function NewVehiclePage() {
   });
 
   const form = useForm<FormData>({
-    resolver: zodResolver(schema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(schema) as any,
     defaultValues: {
       fuelType: "FLEX",
       currentMileage: 0,

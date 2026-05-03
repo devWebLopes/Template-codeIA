@@ -10,6 +10,36 @@ export interface VoiceResult {
   confidence: number;
 }
 
+// Extend Window type for cross-browser SpeechRecognition
+interface SpeechRecognitionWindow extends Window {
+  SpeechRecognition?: new () => SpeechRecognitionInstance;
+  webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+}
+
+interface SpeechRecognitionAlternativeItem {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognitionInstance extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onresult: ((event: SpeechRecognitionEventItem) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+}
+
+interface SpeechRecognitionEventItem {
+  results: Array<SpeechRecognitionAlternativeItem[]> & {
+    [index: number]: SpeechRecognitionAlternativeItem[];
+  };
+}
+
 // ──────────────────────────────────────────────────────
 // Portuguese number word parser
 // ──────────────────────────────────────────────────────
@@ -92,7 +122,8 @@ function extractNumber(raw: string): number | null {
 
 export function isVoiceSupported(): boolean {
   if (typeof window === "undefined") return false;
-  return !!(window.SpeechRecognition || (window as unknown as { webkitSpeechRecognition: unknown }).webkitSpeechRecognition);
+  const w = window as SpeechRecognitionWindow;
+  return !!(w.SpeechRecognition || w.webkitSpeechRecognition);
 }
 
 export interface UseVoiceInputOptions {
@@ -104,7 +135,7 @@ export interface UseVoiceInputOptions {
 export function useVoiceInput({ onResult, onError, field = "decimal" }: UseVoiceInputOptions = {}) {
   const [state, setState] = useState<VoiceState>("idle");
   const [result, setResult] = useState<VoiceResult | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   // Track whether the current recognition session produced a result
   // (avoids stale-closure bugs when checking state inside rec.onend)
   const gotResultRef = useRef(false);
@@ -126,9 +157,8 @@ export function useVoiceInput({ onResult, onError, field = "decimal" }: UseVoice
     // Stop any existing session cleanly
     recognitionRef.current?.abort();
 
-    const SpeechRecognitionClass =
-      window.SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition: typeof SpeechRecognition }).webkitSpeechRecognition;
+    const w = window as SpeechRecognitionWindow;
+    const SpeechRecognitionClass = w.SpeechRecognition ?? w.webkitSpeechRecognition!;
 
     const rec = new SpeechRecognitionClass();
     rec.lang = "pt-BR";

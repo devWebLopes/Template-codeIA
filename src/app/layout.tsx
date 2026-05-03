@@ -4,11 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
-import {
-  ClerkProvider,
-} from "@clerk/nextjs";
-import { siteMetadata } from "@/lib/brand-config";
-import { AnalyticsPixels } from "@/components/analytics/pixels";
+import { ClerkProvider } from "@clerk/nextjs";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,7 +16,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = siteMetadata;
+export const metadata: Metadata = {
+  title: "AutoGest — Gestão Automotiva",
+  description: "Gerencie seus veículos, manutenções, abastecimentos e despesas em um só lugar.",
+};
 
 export default function RootLayout({
   children,
@@ -31,9 +30,8 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="pt-br" suppressHydrationWarning>
         <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased  text-foreground`}
+          className={`${geistSans.variable} ${geistMono.variable} antialiased text-foreground`}
         >
-          <AnalyticsPixels />
           <QueryProvider>
             <ThemeProvider>
               {children}

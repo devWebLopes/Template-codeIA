@@ -29,7 +29,7 @@ const schema = z.object({
   date: z.string().min(1),
   category: z.enum(["FUEL", "TAX", "INSURANCE", "FINE", "WASH", "PARKING", "MAINTENANCE", "OTHER"]),
   description: z.string().min(1),
-  value: z.number({ invalid_type_error: "Valor inválido" }).min(0),
+  value: z.coerce.number().min(0, "Valor inválido"),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -50,7 +50,8 @@ export function ExpenseTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string
   const [filter, setFilter] = useState("ALL");
 
   const form = useForm<FormData>({
-    resolver: zodResolver(schema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(schema) as any,
     defaultValues: { value: 0 },
   });
 

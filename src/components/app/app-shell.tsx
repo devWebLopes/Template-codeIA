@@ -5,8 +5,6 @@ import { useAuth } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/app/sidebar";
 import { Topbar } from "@/components/app/topbar";
-import { PublicHeader } from "@/components/app/public-header";
-
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isSignedIn } = useAuth();
   const [collapsed, setCollapsed] = React.useState(false);
@@ -28,15 +26,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-
   // Non-authenticated layout (no sidebar)
   if (!isSignedIn) {
     return (
       <div className="min-h-dvh w-full bg-background text-foreground">
-        <PublicHeader />
-        <main>
-          {children}
-        </main>
+        <main>{children}</main>
       </div>
     );
   }
