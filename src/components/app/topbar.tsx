@@ -77,7 +77,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
                   <div className="flex items-center gap-3">
                     <SignedIn>
                       <div className="flex items-center gap-3">
-                        <UserButton afterSignOutUrl="/" />
+                        <UserButton />
                       </div>
                     </SignedIn>
                     <SignedOut>

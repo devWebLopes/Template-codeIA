@@ -82,8 +82,7 @@ export default function SettingsPage() {
           <h2 className="font-medium text-sm">Segurança e Acesso</h2>
         </div>
         <div className="space-y-2 text-xs text-muted-foreground">
-          <p>Gerencie quem pode acessar seus veículos na página de <a href="/access-management" className="text-primary hover:underline">Gerenciar Acessos</a>.</p>
-          <p>Se você é mecânico ou revenda, solicite acesso na página de <a href="/request-access" className="text-primary hover:underline">Solicitar Acesso</a>.</p>
+          <p>Gerencie quem pode acessar seus veículos e solicite acesso a outros veículos na página de <a href="/access-management" className="text-primary hover:underline">Gerenciar Acessos</a>.</p>
         </div>
       </div>
     </div>

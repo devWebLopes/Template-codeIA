@@ -17,7 +17,7 @@ export function SimpleTopbar() {
         <div className="flex-1" />
         <div className="flex items-center gap-2">
           <SignedIn>
-            <UserButton afterSignOutUrl="/" />
+            <UserButton />
           </SignedIn>
           <SignedOut>
             <SignInButton mode="modal">
