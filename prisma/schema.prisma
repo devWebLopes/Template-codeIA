@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "./generated/client"
@@ -14,287 +8,248 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  OWNER
+  MECHANIC
+  DEALERSHIP
+  ADMIN
+}
+
 model User {
   id        String   @id @default(cuid())
   clerkId   String   @unique
   email     String?  @unique
   name      String?
+  role      UserRole @default(OWNER)
+  phone     String?
+  address   String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  creditBalance      CreditBalance?
-  usageHistory       UsageHistory[]
-  storageObjects     StorageObject[]
-  subscriptionEvents SubscriptionEvent[]
-  asaasCustomerId    String?   @unique
-  asaasCustomerIdSandbox    String?   @unique
-  asaasCustomerIdProduction String?   @unique
-  asaasSubscriptionId String?
-  currentPlanId      String?
-  cpfCnpj            String?
-  billingPeriodEnd      DateTime?
-  cancellationScheduled Boolean  @default(false)
-  cancellationDate      DateTime?
+
+  vehicles        Vehicle[]
+  vehicleAccesses VehicleAccess[] @relation("UserAccesses")
+  requestedAccesses VehicleAccess[] @relation("RequestedByUser")
+  maintenancesAsMechanic Maintenance[] @relation("MechanicMaintenances")
 
   @@index([email])
   @@index([name])
   @@index([createdAt])
   @@index([isActive])
-  @@index([currentPlanId])
+  @@index([role])
 }
 
-
-// Workspace features and linkage to projects
-model Feature {
-  id          String     @id @default(cuid())
-  workspaceId String
-  name        String
-  description String?
-  tags        String[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([workspaceId])
+enum FuelType {
+  GASOLINE
+  ETHANOL
+  DIESEL
+  FLEX
+  ELECTRIC
 }
 
-model CreditBalance {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  clerkUserId       String   @unique
-  creditsRemaining  Int      @default(100)  // Cached from Clerk
-  lastSyncedAt      DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+model Vehicle {
+  id             String    @id @default(uuid())
+  ownerId        String
+  brand          String
+  model          String
+  year           Int
+  licensePlate   String    @unique
+  chassisNumber  String?   @unique
+  currentMileage Int       @default(0)
+  fuelType       FuelType  @default(FLEX)
+  purchaseDate   DateTime?
+  purchaseValue  Float?
+  color          String?
+  imageUrl       String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  user              User     @relation(fields: [userId], references: [id])
-  usageHistory      UsageHistory[]
+  owner        User            @relation(fields: [ownerId], references: [id])
+  maintenances Maintenance[]
+  expenses     Expense[]
+  fuelLogs     FuelLog[]
+  tires        Tire[]
+  documents    VehicleDocument[]
+  accesses     VehicleAccess[]
 
-  @@index([userId])
-  @@index([clerkUserId])
-  @@index([creditsRemaining])
-  @@index([lastSyncedAt])
-}
-
-// Track individual usage events
-model UsageHistory {
-  id              String   @id @default(cuid())
-  userId          String
-  creditBalanceId String
-  operationType   OperationType
-  creditsUsed     Int
-  details         Json?
-  timestamp       DateTime @default(now())
-
-  user            User     @relation(fields: [userId], references: [id])
-  creditBalance   CreditBalance @relation(fields: [creditBalanceId], references: [id])
-
-  @@index([userId])
-  @@index([creditBalanceId])
-  @@index([timestamp])
-  @@index([operationType])
-  @@index([userId, timestamp])
-  @@index([operationType, timestamp])
-}
-
-enum OperationType {
-  AI_TEXT_CHAT
-  AI_IMAGE_GENERATION
-}
-
-// Singleton row storing admin-configurable credit settings
-model AdminSettings {
-  id           String   @id @default("singleton")
-  featureCosts Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-// Subscription plans managed manually and optionally linked to payment providers
-model Plan {
-  id        String   @id @default(cuid())
-  asaasId   String?  @unique // Asaas plan ID for payment processing
-  clerkId   String?  @unique // Legacy Clerk plan ID (deprecated)
-  clerkName String?  // Legacy field
-  name      String
-  credits   Int
-  active    Boolean  @default(true)
-  sortOrder Int      @default(0)
-  // Pricing configuration (amounts in cents)
-  // Asaas only supports BRL (Brazilian Real)
-  currency           String?  @default("brl")
-  priceMonthlyCents  Int?
-  priceYearlyCents   Int?
-  description        String?  @db.Text
-  features           Json?
-  badge              String?
-  highlight          Boolean  @default(false)
-  ctaType            String?  @default("contact")
-  ctaLabel           String?
-  ctaUrl             String?
-  billingSource      String   @default("manual")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([active])
-  @@index([sortOrder])
-}
-
-// File/object uploads tracked for admin management
-model StorageObject {
-  id           String   @id @default(cuid())
-  userId       String
-  clerkUserId  String
-  provider     String   @default("vercel_blob")
-  url          String
-  pathname     String
-  name         String
-  contentType  String?
-  size         Int
-  deletedAt    DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  user         User     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
+  @@index([ownerId])
+  @@index([brand])
+  @@index([licensePlate])
   @@index([createdAt])
-  @@index([clerkUserId])
-  @@index([contentType])
-  @@index([deletedAt])
-  @@index([name])
 }
 
-// Track subscription lifecycle events for revenue analytics
-model SubscriptionEvent {
-  id           String   @id @default(cuid())
-  userId       String?
-  clerkUserId  String
-  planKey      String?
-  status       String
-  eventType    String
-  occurredAt   DateTime @default(now())
-  metadata     Json?
-  createdAt    DateTime @default(now())
+model Maintenance {
+  id                      String    @id @default(uuid())
+  vehicleId               String
+  mechanicId              String?
+  date                    DateTime
+  type                    String
+  description             String
+  cost                    Float
+  partsUsed               Json?
+  mileage                 Int
+  nextMaintenanceDate     DateTime?
+  nextMaintenanceMileage  Int?
+  invoiceUrl              String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  user         User?    @relation(fields: [userId], references: [id])
+  vehicle  Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  mechanic User?   @relation("MechanicMaintenances", fields: [mechanicId], references: [id])
 
-  @@index([clerkUserId, occurredAt])
-  @@index([userId, occurredAt])
-}
-
-enum LoanInterval {
-  DAILY
-  WEEKLY
-  BIWEEKLY
-  MONTHLY
-}
-
-enum LoanStatus {
-  ACTIVE
-  PAID_OFF
-  CANCELLED
-}
-
-enum InstallmentStatus {
-  PENDING
-  PAID
-  OVERDUE
-}
-
-enum TransactionType {
-  ENTRADA
-  SAIDA
-}
-
-model Client {
-  id         String   @id @default(cuid())
-  userId     String
-  name       String
-  whatsapp   String?
-  cpf        String?
-  address    String?
-  motherName String?
-  pix        String?
-  bank       String?
-  agency     String?
-  account    String?
-  reserve    Decimal? @db.Decimal(12, 2)
-  line       Int?
-  notes      String?  @db.Text
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  loans        Loan[]
-  transactions Transaction[]
-
-  @@index([userId])
-  @@index([name])
-  @@index([cpf])
-}
-
-model Loan {
-  id                String       @id @default(cuid())
-  userId            String
-  clientId          String
-  loanDate          DateTime
-  principal         Decimal      @db.Decimal(12, 2)
-  interestRate      Decimal      @db.Decimal(5, 2)
-  installmentsCount Int
-  interval          LoanInterval
-  penaltyPerDay     Decimal      @default(0) @db.Decimal(5, 2)
-  status            LoanStatus   @default(ACTIVE)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-
-  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  installments Installment[]
-  transactions Transaction[]
-
-  @@index([userId])
-  @@index([clientId])
-  @@index([status])
-  @@index([userId, status])
-}
-
-model Installment {
-  id         String            @id @default(cuid())
-  loanId     String
-  number     Int
-  dueDate    DateTime
-  amount     Decimal           @db.Decimal(12, 2)
-  paidAt     DateTime?
-  paidAmount Decimal?          @db.Decimal(12, 2)
-  penalty    Decimal           @default(0) @db.Decimal(12, 2)
-  status     InstallmentStatus @default(PENDING)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-
-  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
-
-  @@index([loanId])
-  @@index([dueDate])
-  @@index([status])
-  @@index([loanId, status])
-}
-
-model Transaction {
-  id       String          @id @default(cuid())
-  userId   String
-  clientId String?
-  loanId   String?
-  type     TransactionType
-  amount   Decimal         @db.Decimal(12, 2)
-  date     DateTime
-  notes    String?         @db.Text
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-
-  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  loan   Loan?   @relation(fields: [loanId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([userId, date])
+  @@index([vehicleId])
+  @@index([date])
   @@index([type])
-  @@index([clientId])
+  @@index([vehicleId, date])
+}
+
+enum ExpenseCategory {
+  FUEL
+  TAX
+  INSURANCE
+  FINE
+  WASH
+  PARKING
+  MAINTENANCE
+  OTHER
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  vehicleId   String
+  date        DateTime
+  category    ExpenseCategory
+  description String
+  value       Float
+  receiptUrl  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@index([date])
+  @@index([category])
+  @@index([vehicleId, date])
+}
+
+enum FuelLogType {
+  GASOLINE
+  ETHANOL
+  DIESEL
+  FLEX
+}
+
+model FuelLog {
+  id            String      @id @default(uuid())
+  vehicleId     String
+  date          DateTime
+  fuelType      FuelLogType
+  liters        Float
+  pricePerLiter Float
+  totalCost     Float
+  mileage       Int
+  stationName   String?
+  fullTank      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@index([date])
+  @@index([vehicleId, date])
+}
+
+enum TirePosition {
+  FRONT_LEFT
+  FRONT_RIGHT
+  REAR_LEFT
+  REAR_RIGHT
+  SPARE
+}
+
+model Tire {
+  id                    String       @id @default(uuid())
+  vehicleId             String
+  position              TirePosition
+  brand                 String
+  model                 String
+  size                  String?
+  purchaseDate          DateTime
+  purchaseMileage       Int
+  cost                  Float
+  lastRotationDate      DateTime?
+  lastRotationMileage   Int?
+  expectedLifespanKm    Int?
+  expectedLifespanMonths Int?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@index([position])
+}
+
+enum DocumentType {
+  IPVA
+  LICENSING
+  INSURANCE_POLICY
+  FINE
+  CRLV
+  OTHER
+}
+
+model VehicleDocument {
+  id             String       @id @default(uuid())
+  vehicleId      String
+  type           DocumentType
+  description    String?
+  issueDate      DateTime?
+  expirationDate DateTime?
+  value          Float?
+  documentUrl    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@index([type])
+  @@index([expirationDate])
+}
+
+enum AccessLevel {
+  READ_ONLY
+  EDIT_MAINTENANCE
+  FULL_ACCESS
+}
+
+enum AccessStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+model VehicleAccess {
+  id          String       @id @default(uuid())
+  vehicleId   String
+  userId      String
+  requestedBy String
+  accessLevel AccessLevel  @default(READ_ONLY)
+  status      AccessStatus @default(PENDING)
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  vehicle     Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  user        User    @relation("UserAccesses", fields: [userId], references: [id])
+  requester   User    @relation("RequestedByUser", fields: [requestedBy], references: [id])
+
+  @@index([vehicleId])
+  @@index([userId])
+  @@index([status])
+  @@index([vehicleId, userId])
 }

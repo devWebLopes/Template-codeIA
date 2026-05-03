@@ -18,13 +18,13 @@ export type AnalyticsConfig = {
 }
 
 export const site = {
-  name: 'LoanManager — Gestão de Empréstimos',
-  shortName: 'LoanManager',
+  name: 'AutoGest — Gestão Automotiva',
+  shortName: 'AutoGest',
   description:
-    'Gerencie seus empréstimos pessoais de forma simples e segura. Controle clientes, parcelas, juros, multas e fluxo de caixa em um único lugar.',
+    'Gerencie seus veículos de forma inteligente. Controle manutenções, despesas, combustível, documentos e muito mais em um só lugar.',
   url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000',
-  author: 'LoanManager',
-  keywords: ['empréstimos', 'gestão financeira', 'controle de parcelas', 'fluxo de caixa', 'cobrança', 'SaaS'],
+  author: 'AutoGest',
+  keywords: ['gestão automotiva', 'controle de veículos', 'manutenção', 'despesas', 'combustível', 'IPVA', 'seguro'],
   ogImage: '/og-image.png',
   logo: {
     light: '/logo-light.svg',

@@ -1,77 +1,80 @@
-# LoanManager — Gestão de Empréstimos
+# AutoGest — Gestão Automotiva
 
-## Overview
-A full-stack SaaS loan management app built with Next.js 16, Prisma, Clerk authentication, Asaas payments, and shadcn/ui. Replaces manual Excel spreadsheets for personal loan management with automated interest/penalty calculations, installment tracking, WhatsApp messaging, and real-time dashboards.
+## Visão Geral
+Aplicativo de gestão automotiva mobile-first construído com Next.js 15 App Router. Permite que proprietários de veículos controlem manutenções, despesas, combustível, pneus, documentos e permissões de acesso. Suporta múltiplos papéis: proprietário, mecânico e revenda.
 
-## Architecture
-- **Framework**: Next.js 16 (App Router, Turbopack)
-- **Auth**: Clerk (`@clerk/nextjs`)
-- **Payments**: Asaas (Brazilian payment provider for subscriptions)
-- **Database**: PostgreSQL via Prisma ORM (Replit-hosted)
-- **UI**: Tailwind CSS v4, Radix UI, shadcn/ui components
-- **State**: TanStack Query for client-side data fetching
+## Stack Tecnológico
+- **Framework**: Next.js 15 App Router (TypeScript)
+- **Autenticação**: Clerk (modo keyless dev — sem configuração necessária)
+- **Banco de Dados**: PostgreSQL via Replit + Prisma ORM
+- **UI**: Radix UI + Tailwind CSS + shadcn/ui
+- **Formulários**: react-hook-form + Zod
+- **Notificações**: Sonner (toasts)
+- **Fontes**: Geist Sans + Geist Mono
 
-## Key Directories
-- `src/app/(public)/` — Landing page, sign-in, sign-up
-- `src/app/(protected)/` — Auth-protected pages:
-  - `/dashboard` — KPI metrics, due today, overdue lists
-  - `/clients` — Client CRUD (list, create, detail, edit)
-  - `/loans` — Loan CRUD with installment management
-  - `/transactions` — Cash flow entries/exits
-  - `/messages` — WhatsApp message composer
-  - `/alerts/today` — Installments due today
-  - `/alerts/overdue` — Overdue installments
-  - `/billing` — Subscription management
-- `src/app/api/` — API route handlers:
-  - `/api/clients` — Client CRUD
-  - `/api/loans` — Loan CRUD + installment management
-  - `/api/transactions` — Cash flow CRUD
-  - `/api/reports/dashboard` — Dashboard metrics
-  - `/api/reports/today` — Due today installments
-  - `/api/reports/overdue` — Overdue installments
-  - `/api/messages/whatsapp` — WhatsApp deep-link generator
-  - `/api/webhooks/asaas` — Asaas payment webhooks
-  - `/api/webhooks/clerk` — Clerk user sync webhooks
-- `src/components/loans/` — LoanManager-specific components
-- `src/lib/loans/` — Business logic (calculations, queries)
-- `prisma/` — Schema and migrations
+## Estrutura do Projeto
+```
+src/
+├── app/
+│   ├── (public)/         # Landing page, sign-in, sign-up
+│   ├── (protected)/      # App autenticado
+│   │   ├── dashboard/    # Dashboard principal
+│   │   ├── vehicles/     # Lista, novo, [id] (detalhe com abas)
+│   │   ├── maintenances/ # Todas as manutenções
+│   │   ├── fuel/         # Histórico de combustível
+│   │   ├── documents/    # Documentos: IPVA, seguro, etc.
+│   │   ├── insurance/    # Apólices de seguro
+│   │   ├── access-management/ # Gerenciar acessos pendentes
+│   │   ├── request-access/    # Solicitar acesso (mecânico/revenda)
+│   │   └── settings/     # Configurações da conta
+│   └── api/
+│       ├── dashboard/    # Métricas do dashboard
+│       ├── vehicles/     # CRUD de veículos
+│       │   └── [id]/     # Rotas aninhadas: maintenances, expenses,
+│       │                 #   fuel-logs, tires, documents, accesses
+│       └── access-requests/ # Solicitações de acesso (pending, approve, reject, revoke)
+├── components/
+│   ├── app/              # sidebar, topbar, mobile-nav, page-header
+│   ├── vehicles/         # Tabs: maintenance, expense, fuel, tire, document, access
+│   └── ui/               # shadcn/ui components
+└── lib/
+    ├── auto-utils.ts     # getAuthUser, checkVehicleAccess, helpers de resposta
+    ├── auto-format.ts    # formatCurrency, formatDate, labels de enum
+    ├── db.ts             # Prisma client singleton
+    └── brand-config.ts   # Configuração de marca (AutoGest)
+```
 
-## Database Models (LoanManager-specific)
-- **Client** — Customer with personal, banking, and PIX data
-- **Loan** — Loan record with principal, interest rate, interval, penalty
-- **Installment** — Individual installment with due date, status, penalty tracking
-- **Transaction** — Cash flow entry (ENTRADA/SAIDA)
-- Enums: `LoanInterval`, `LoanStatus`, `InstallmentStatus`, `TransactionType`
+## Schema do Banco (Prisma)
+Modelos principais:
+- **User** (clerkId, role: OWNER/MECHANIC/DEALERSHIP/ADMIN)
+- **Vehicle** (brand, model, year, licensePlate, fuelType, mileage, etc.)
+- **Maintenance** (type, description, cost, mileage, nextMaintenanceDate)
+- **Expense** (category, description, value, date)
+- **FuelLog** (fuelType, liters, pricePerLiter, totalCost, mileage)
+- **Tire** (position, brand, model, size, purchaseDate, cost)
+- **VehicleDocument** (type: IPVA/LICENSING/INSURANCE_POLICY/FINE/CRLV/OTHER, expirationDate)
+- **VehicleAccess** (accessLevel: READ_ONLY/EDIT_MAINTENANCE/FULL_ACCESS, status: PENDING/ACTIVE/REVOKED)
 
-## Business Logic
-- Located in `src/lib/loans/calculations.ts`
-- Interest: `principal * interestRate / 100`
-- Total debt: `principal + interest`
-- Installment amount: `totalDebt / installmentsCount`
-- Penalty: `installmentAmount * penaltyPerDay/100 * daysOverdue`
-- Due dates generated based on interval (daily/weekly/biweekly/monthly)
+## Design Mobile-First
+- Navegação inferior (bottom nav) em mobile com 5 itens principais
+- Sidebar colapsável visível apenas em md+ (desktop)
+- Menu hamburger no topbar para mobile (Sheet/drawer)
+- Cards empilhados em coluna no mobile, grid em desktop
+- Touch targets mínimo 44px
+- Tema claro/escuro suportado
 
-## Running the App
-- **Dev**: `npm run dev` (prisma generate + Next.js on port 5000)
-- **Build**: `npm run build`
-- **Start**: `npm run start` (port 5000, 0.0.0.0)
+## Fluxo de Acesso a Veículos
+1. **Proprietário**: acesso total, pode aprovar/rejeitar/revogar acessos
+2. **Mecânico/Revenda**: solicita acesso via placa do veículo, escolhe nível de acesso
+3. **Proprietário aprova**: via página `/access-management` ou aba "Acessos" no veículo
 
-## Required Secrets
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` — Clerk publishable key
-- `CLERK_SECRET_KEY` — Clerk secret key
-- `CLERK_WEBHOOK_SECRET` — Clerk webhook signing secret
-- `ASAAS_API_KEY` — Asaas payment API key
-- `ASAAS_WEBHOOK_SECRET` — Asaas webhook verification token
-- `OPENROUTER_API_KEY` — OpenRouter AI API key
-- `DATABASE_URL` — PostgreSQL (auto-managed by Replit)
+## Configurações Importantes
+- Porta: 5000 (configurada no workflow)
+- Clerk: modo keyless (dev) — requer CLERK_SIGN_IN_URL e CLERK_SIGN_UP_URL definidos
+- Prisma: schema em `prisma/schema.prisma`, client em `prisma/generated/client`
+- DB: `DATABASE_URL` via variável de ambiente do Replit
 
-## Database Commands
-- Apply migrations: `npx prisma migrate deploy`
-- Push schema: `npm run db:push`
-- Prisma Studio: `npm run db:studio`
-
-## Replit Configuration
-- Port: **5000** (required by Replit webview)
-- Host: **0.0.0.0**
-- Node.js 22 module
-- `allowedDevOrigins` configured in `next.config.ts`
+## Preferências do Usuário
+- Linguagem: português brasileiro em toda a UI
+- Design: glass-panel, modo escuro/claro, estilo futurístico já presente no template base
+- Mobile: app deve funcionar perfeitamente como PWA

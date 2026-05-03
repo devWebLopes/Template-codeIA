@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Menu } from "lucide-react";
+import { Menu, Car } from "lucide-react";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose, SheetFooter } from "@/components/ui/sheet";
 import { navigationItems } from "@/components/app/sidebar";
+import { usePathname } from "next/navigation";
 
 type TopbarProps = {
   onToggleSidebar: () => void;
@@ -17,6 +18,8 @@ type TopbarProps = {
 };
 
 export function Topbar({ onToggleSidebar }: TopbarProps) {
+  const pathname = usePathname();
+
   return (
     <header
       className={cn(
@@ -40,18 +43,27 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0 md:hidden">
               <SheetHeader className="p-4 text-left">
-                <div className="flex items-center justify-between">
-                  <SheetTitle>LoanManager</SheetTitle>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <Car className="h-4 w-4" />
+                  </div>
+                  <SheetTitle>AutoGest</SheetTitle>
                 </div>
               </SheetHeader>
               <nav className="flex flex-col gap-1 p-2">
                 {navigationItems.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                   const Icon = item.icon as React.ComponentType<{ className?: string }>;
                   return (
                     <SheetClose asChild key={item.name}>
                       <Link
                         href={item.href}
-                        className={"flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-accent text-accent-foreground"
+                            : "hover:bg-accent hover:text-accent-foreground"
+                        )}
                       >
                         <Icon className="h-4 w-4" />
                         <span>{item.name}</span>
@@ -74,7 +86,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
                           <Button variant="ghost" size="sm">Entrar</Button>
                         </SignInButton>
                         <SignUpButton mode="modal">
-                          <Button size="sm">Inscrever-se</Button>
+                          <Button size="sm">Cadastrar</Button>
                         </SignUpButton>
                       </div>
                     </SignedOut>
@@ -88,8 +100,10 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
 
         {/* Brand (mobile) */}
         <Link href="/" className="flex items-center gap-2 md:hidden">
-          <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground text-xs font-bold">$</div>
-          <span className="text-sm font-semibold">LoanManager</span>
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Car className="h-4 w-4" />
+          </div>
+          <span className="text-sm font-semibold">AutoGest</span>
         </Link>
 
         <div className="hidden items-center gap-2 md:flex">
@@ -103,21 +117,16 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           </Button>
         </div>
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Right side actions */}
         <div className="flex items-center gap-2">
           <SignedIn>
             <Separator orientation="vertical" className="h-6" />
           </SignedIn>
-          
           <ThemeToggle />
-          
           <SignedIn>
             <UserButton />
           </SignedIn>
-          
           <SignedOut>
             <SignInButton mode="modal">
               <Button variant="ghost" size="sm">
@@ -126,7 +135,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
             </SignInButton>
             <SignUpButton mode="modal">
               <Button size="sm">
-                Inscrever-se
+                Cadastrar
               </Button>
             </SignUpButton>
           </SignedOut>

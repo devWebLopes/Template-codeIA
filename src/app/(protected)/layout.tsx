@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import { useAuth } from "@clerk/nextjs";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/app/sidebar";
 import { Topbar } from "@/components/app/topbar";
 import { PageHeader } from "@/components/app/page-header";
+import { MobileNav } from "@/components/app/mobile-nav";
 import { PageMetadataProvider } from "@/contexts/page-metadata";
-import { useSubscription } from "@/hooks/use-subscription";
 
 export default function ProtectedLayout({
   children,
@@ -16,14 +16,9 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const { isLoaded, isSignedIn } = useAuth();
-  const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = React.useState(false);
 
-  // Use TanStack Query for subscription status
-  const { data: subscriptionStatus, isLoading: isLoadingSubscription } = useSubscription();
-
-  // hydrate from localStorage
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem("app.sidebarCollapsed");
@@ -40,29 +35,13 @@ export default function ProtectedLayout({
     });
   }, []);
 
-  // Redirect to sign-in if not authenticated
   React.useEffect(() => {
     if (isLoaded && !isSignedIn) {
       router.replace("/sign-in");
     }
   }, [isLoaded, isSignedIn, router]);
 
-  // After auth, verify subscription access. Allow billing page even without plan.
-  React.useEffect(() => {
-    if (!isLoaded || !isSignedIn || isLoadingSubscription) return;
-
-    const isActive = Boolean(subscriptionStatus?.isActive);
-    // Allow access to billing and subscribe pages even without active subscription
-    const allowedPaths = ['/subscribe', '/billing'];
-    const isOnAllowedPath = allowedPaths.some(path => pathname.startsWith(path));
-
-    if (!isActive && !isOnAllowedPath) {
-      router.replace('/subscribe');
-    }
-  }, [isLoaded, isSignedIn, isLoadingSubscription, subscriptionStatus?.isActive, pathname, router]);
-
-  // Show loading state while checking authentication
-  if (!isLoaded || isLoadingSubscription) {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -70,20 +49,14 @@ export default function ProtectedLayout({
     );
   }
 
-  // Authenticated layout with sidebar
   return (
     <PageMetadataProvider>
       <div className="min-h-dvh w-full text-foreground">
         <div className="flex">
           <Sidebar collapsed={collapsed} onToggle={toggleCollapse} />
-          <div className="flex min-h-dvh flex-1 flex-col p-4">
+          <div className="flex min-h-dvh flex-1 flex-col pb-16 md:pb-0">
             <Topbar onToggleSidebar={toggleCollapse} sidebarCollapsed={collapsed} />
-            <main
-              className={cn(
-                "container mx-auto w-full max-w-[1400px] pb-10 pt-6"
-              )}
-            >
-              {/* layered glow behind the main content for futuristic feel */}
+            <main className={cn("container mx-auto w-full max-w-[1400px] pb-6 pt-4 px-3 md:px-6")}>
               <div className="relative overflow-hidden">
                 <div
                   className="pointer-events-none absolute -inset-6 -z-10 rounded-2xl"
@@ -95,7 +68,7 @@ export default function ProtectedLayout({
                   }}
                   aria-hidden="true"
                 />
-                <div className="glass-panel border-border/40 bg-card/30 p-6">
+                <div className="glass-panel border-border/40 bg-card/30 p-4 md:p-6">
                   <PageHeader />
                   {children}
                 </div>
@@ -103,6 +76,7 @@ export default function ProtectedLayout({
             </main>
           </div>
         </div>
+        <MobileNav />
       </div>
     </PageMetadataProvider>
   );
