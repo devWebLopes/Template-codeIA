@@ -23,6 +23,8 @@ import { FuelTab } from "@/components/vehicles/fuel-tab";
 import { TireTab } from "@/components/vehicles/tire-tab";
 import { DocumentTab } from "@/components/vehicles/document-tab";
 import { AccessTab } from "@/components/vehicles/access-tab";
+import { useVoiceInput } from "@/hooks/use-voice-input";
+import { VoiceButton, VoiceResultCard } from "@/components/ui/voice-button";
 
 interface VehicleData {
   id: string;
@@ -57,6 +59,11 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
   const [mileageOpen, setMileageOpen] = useState(false);
   const [newMileage, setNewMileage] = useState("");
   const [savingMileage, setSavingMileage] = useState(false);
+
+  const mileageVoice = useVoiceInput({
+    field: "integer",
+    onError: (e) => toast.error(e),
+  });
 
   useSetPageMetadata({
     title: vehicle ? `${vehicle.brand} ${vehicle.model}` : "Veículo",
@@ -209,7 +216,7 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Mileage Update Dialog */}
-      <Dialog open={mileageOpen} onOpenChange={setMileageOpen}>
+      <Dialog open={mileageOpen} onOpenChange={(o) => { setMileageOpen(o); if (!o) mileageVoice.reset(); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -223,14 +230,36 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
             </p>
             <div className="space-y-1.5">
               <Label className="text-xs">Nova quilometragem (km) *</Label>
-              <Input
-                type="number"
-                value={newMileage}
-                onChange={(e) => setNewMileage(e.target.value)}
-                placeholder={String(vehicle.currentMileage)}
-                className="h-9"
-                autoFocus
-                onKeyDown={(e) => { if (e.key === "Enter") handleMileageUpdate(); }}
+              <div className="flex gap-1.5">
+                <Input
+                  type="number"
+                  value={newMileage}
+                  onChange={(e) => setNewMileage(e.target.value)}
+                  placeholder={String(vehicle.currentMileage)}
+                  className="h-9 flex-1"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handleMileageUpdate(); }}
+                />
+                <VoiceButton
+                  state={mileageVoice.state}
+                  onStart={mileageVoice.start}
+                  onStop={mileageVoice.stop}
+                  supported={mileageVoice.supported}
+                />
+              </div>
+              <VoiceResultCard
+                label="Quilometragem"
+                state={mileageVoice.state}
+                rawText={mileageVoice.result?.raw}
+                parsedNumber={mileageVoice.result?.number}
+                unit="km"
+                onConfirm={(val) => {
+                  setNewMileage(String(Math.round(val)));
+                  mileageVoice.reset();
+                  toast.success("Quilometragem preenchida por voz!");
+                }}
+                onRetry={() => { mileageVoice.reset(); setTimeout(mileageVoice.start, 200); }}
+                onDismiss={mileageVoice.reset}
               />
             </div>
             <Button onClick={handleMileageUpdate} disabled={savingMileage} className="w-full h-9">
