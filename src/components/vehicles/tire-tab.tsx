@@ -66,6 +66,14 @@ export function TireTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
 
   useEffect(() => { load(); }, [vehicleId]);
 
+  async function handleDelete(id: string) {
+    if (!confirm("Excluir este pneu?")) return;
+    await fetch(`/api/vehicles/${vehicleId}/tires/${id}`, { method: "DELETE" });
+    toast.success("Pneu excluído");
+    load();
+    onUpdate();
+  }
+
   async function onSubmit(data: FormData) {
     setSaving(true);
     try {
@@ -203,7 +211,7 @@ export function TireTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
           {items.map((t) => (
             <div key={t.id} className="rounded-xl border border-border/40 bg-card/30 p-3">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm">{t.brand} {t.model}</span>
                     {t.size && <span className="text-xs text-muted-foreground">{t.size}</span>}
@@ -215,6 +223,11 @@ export function TireTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string; i
                     <span className="font-medium text-foreground">{formatCurrency(t.cost)}</span>
                   </div>
                 </div>
+                {isOwner && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleDelete(t.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}

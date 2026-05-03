@@ -87,6 +87,7 @@ export function ExpenseTab({ vehicleId, isOwner, onUpdate }: { vehicleId: string
     await fetch(`/api/vehicles/${vehicleId}/expenses/${id}`, { method: "DELETE" });
     toast.success("Despesa excluída");
     load();
+    onUpdate();
   }
 
   const filtered = filter === "ALL" ? items : items.filter((e) => e.category === filter);

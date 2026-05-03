@@ -57,6 +57,14 @@ export function DocumentTab({ vehicleId, isOwner, onUpdate }: { vehicleId: strin
 
   useEffect(() => { load(); }, [vehicleId]);
 
+  async function handleDelete(id: string) {
+    if (!confirm("Excluir este documento?")) return;
+    await fetch(`/api/vehicles/${vehicleId}/documents/${id}`, { method: "DELETE" });
+    toast.success("Documento excluído");
+    load();
+    onUpdate();
+  }
+
   async function onSubmit(data: FormData) {
     setSaving(true);
     try {
@@ -182,11 +190,18 @@ export function DocumentTab({ vehicleId, isOwner, onUpdate }: { vehicleId: strin
                     </div>
                   </div>
                 </div>
-                {d.documentUrl && (
-                  <a href={d.documentUrl} target="_blank" rel="noreferrer" className="text-primary text-xs hover:underline shrink-0">
-                    Ver
-                  </a>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {d.documentUrl && (
+                    <a href={d.documentUrl} target="_blank" rel="noreferrer" className="text-primary text-xs hover:underline">
+                      Ver
+                    </a>
+                  )}
+                  {isOwner && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(d.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
